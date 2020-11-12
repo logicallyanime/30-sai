@@ -1,0 +1,23 @@
+{
+  "name": "30sai-check",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^0.21.0",
+    "cron": "^1.8.2",
+    "dotenv": "^8.2.0",
+    "form-data": "^3.0.0",
+    "pushbullet": "github:logicallyanime/node-pushbullet-api",
+    "qs": "^6.9.4"
+  },
+  "devDependencies": {
+    "@types/form-data": "^2.5.0",
+    "@types/qs": "^6.9.5"
+  },
+  "scripts": {
+    "test": "test"
+  },
+  "author": "",
+  "license": "ISC"
+}
