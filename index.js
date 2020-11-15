@@ -135,7 +135,7 @@ function UpdateData() {
     config.data = JSON.stringify(data);
 }
 
-var job = new CronJob('0/30 * * * 4,5,6,7', function () { getBlogPost() }, null, false, "America/New_York");
+var job = new CronJob('0/30 * * * 3-6,0', function () { getBlogPost() }, null, false, "America/New_York");
 
 
 getBlogPost();
