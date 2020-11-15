@@ -1,6 +1,14 @@
 var axios = require("axios");
 const CronJob = require('cron').CronJob;
 require('dotenv').config()
+const RealDebridClient = require('node-real-debrid')
+const RD = new RealDebridClient(process.env.DEBRID)
+const jsdom = require("jsdom");
+const { JSDOM } = jsdom;
+const fs = require('fs');
+var beau = require("json-beautify");
+
+
 
 var AuthToken = process.env.TOKEN;
 
@@ -36,7 +44,7 @@ var config = {
 
 
 async function getBlogPost() {
-    let request = await (await axios.default.get("https://irozuku.org/fansub/wp-json/wp/v2/posts"));
+    let request = await axios.default.get("https://irozuku.org/fansub/wp-json/wp/v2/posts");
     let json = await request.data;
     var cherry = {};
     function isArray(obj) {
@@ -53,37 +61,58 @@ async function getBlogPost() {
             }
         }
         else if(json[index].tags == 50){
-        console.log("\npassed third if");
-        cherry = json[index];
-        cherry.epNo = cherry.slug.substring(cherry.slug.length-2, cherry.slug.length);
-        break;
-        console.log("\nagain, not breaking");
+            console.log("\npassed third if");
+            cherry = json[index];
+            cherry.epNo = cherry.slug.substring(cherry.slug.length-2, cherry.slug.length);
+            break;
+            console.log("\nagain, not breaking");
+        }
+    }
+    
+    let dom = new JSDOM(cherry.content.rendered);
+    let oldLink = dom.window.document.body.getElementsByTagName('a')[0].href
+    let check = CheckPost(oldLink, cherry.epNo);
+    let newLink = await RD.unrestrict.link(oldLink);
+    cherry.link = newLink.download + ".mp4";
+    
+
+    if (check.new) {
+        variData.title = "New Cherry Magic Episode Available";
+        variData.body = `Episode ${parseInt(cherry.epNo)} is now up!`;
+        variData.url = cherry.link;
+        console.log(cherry.link);
+        UpdateData();
+        makeRequest()
+    } else if (!check.new){
+        return;
+    } else{
+        variData.title = "An error has occured";
+        variData.body = `Check your fucking code`;
+        variData.url = null;
+        UpdateData();
+        makeRequest()
     }
 }
 
-let check = CheckPost(cherry.epNo);
+function logError(cherry) {
+    let log = {
+        link: cherry.link,
+        body: cherry.content,
+        CurrentEp: cherry.epNo,
+        LastEp: LastEp,
+    }
 
-if (check.new) {
-    variData.title = "New Cherry Magic Episode Available";
-    variData.body = `Episode ${parseInt(cherry.epNo)} is now up!`;
-    variData.url = cherry.link;
-    console.log(cherry.link);
-    UpdateData();
-    makeRequest()
-} else if (!check.new){
-    return;
-} else{
-    variData.title = "An error has occured";
-    variData.body = `Check your fucking code`;
-    variData.url = null;
-    UpdateData();
-    makeRequest()
-}
+    fs.writeFileSync("error.log",beau(log, null, 2, 100));
 }
 
-function CheckPost(curEp) {
+function CheckPost(link, curEp) {
     let check = {};
     check.errors = false;
+    if (!link.includes("mediafire")) {
+        logError(cherry);
+        check.errors = true;
+        return;
+    }
     if(curEp > LastEp){
         check.new = true;
         LastEp = curEp;
@@ -105,9 +134,8 @@ function UpdateData() {
     }
     config.data = JSON.stringify(data);
 }
-var job = new CronJob('0/30 * * * *', function () {
-    getBlogPost()
-}, null, false, "America/New_York");
+
+var job = new CronJob('0/30 * * * *', function () { getBlogPost() }, null, false, "America/New_York");
 
 
 getBlogPost();

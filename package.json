@@ -8,6 +8,9 @@
     "cron": "^1.8.2",
     "dotenv": "^8.2.0",
     "form-data": "^3.0.0",
+    "jsdom": "^16.4.0",
+    "json-beautify": "^1.1.1",
+    "node-real-debrid": "^1.0.6",
     "pushbullet": "github:logicallyanime/node-pushbullet-api",
     "qs": "^6.9.4"
   },
