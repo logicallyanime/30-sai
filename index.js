@@ -40,10 +40,11 @@ async function getBlogPost() {
                 cherry.epNo = cherry.slug.substring(cherry.slug.length-2, cherry.slug.length);
                 break;
             }
-        else if(json[index].tags == 50){
-            cherry = json[index];
-            cherry.epNo = cherry.slug.substring(cherry.slug.length-2, cherry.slug.length);
-            break;
+            else if(json[index].tags == 50){
+                cherry = json[index];
+                cherry.epNo = cherry.slug.substring(cherry.slug.length-2, cherry.slug.length);
+                break;
+            }
         }
     }
     
