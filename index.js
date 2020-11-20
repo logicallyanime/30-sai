@@ -189,6 +189,7 @@ consoler.on('lastCheck', lastCheck);
 consoler.on('setCurEp', setCurEp);
 consoler.on('jobToggle', jobToggle);
 consoler.on('currRunJobs', currRunJobs);
+consoler.on('forceCheck', forceCheck);
 consoler.on('help', () => console.log(consoler.eventNames()));
 
 
