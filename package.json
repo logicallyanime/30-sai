@@ -12,7 +12,8 @@
     "json-beautify": "^1.1.1",
     "node-real-debrid": "^1.0.6",
     "pushbullet": "github:logicallyanime/node-pushbullet-api",
-    "qs": "^6.9.4"
+    "qs": "^6.9.4",
+    "readline": "^1.3.0"
   },
   "devDependencies": {
     "@types/form-data": "^2.5.0",

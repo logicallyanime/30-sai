@@ -7,9 +7,17 @@ const jsdom = require("jsdom");
 const { JSDOM } = jsdom;
 const fs = require('fs');
 var beau = require("json-beautify");
+var events = require('events');
+var consoler = new events.EventEmitter();
 const AuthToken = process.env.TOKEN;
 var LastEp = 0;
 var firstRun = true;
+var readline = require('readline');
+
+var rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
 
 const statiData = { type: "link", channel_tag: "30-sai" }
 var variData = { title: null, body: null, url: null, };
@@ -30,6 +38,7 @@ var isArray = (obj) => Object.prototype.toString.call(obj) === '[object Array]';
 
 async function getBlogPost() {
     
+    console.log("\nChecking ep status of Cherry Magic...");
     let request = await axios.default.get("https://irozuku.org/fansub/wp-json/wp/v2/posts");
     let json = await request.data;
     var cherry = {};
@@ -70,13 +79,13 @@ async function getBlogPost() {
     }
     if(job.running){
         job.stop();
-        console.log("Check post completed, job stopped.");
+        console.log("Check post completed, Blog Checker Job stopped.");
         return;
     } else if (firstRun){
         firstRun = false
         console.log("Check post completed first run!");
     } 
-    else console.log("Check post completed, yet no job is running...");
+    else console.log("Check post completed, yet Blog Checker Job is not running...");
 }
 
 function SetVariData(title = null,body = null, url = null) {
@@ -107,7 +116,10 @@ async function CheckPost(link, curEp) {
         check.new = true;
         LastEp = curEp;
         let prev = await axios.default.get('https://api.pushbullet.com/v2/pushes', { headers: { 'Access-Token': AuthToken } });
-        if(prev.data.pushes[0].body == `Episode ${parseInt(curEp)} is now up!`) check.new = false;
+        if(prev.data.pushes[0].body == `Episode ${parseInt(curEp)} is now up!`) {
+            check.new = false;
+            console.log("Notification has already previously been sent.")
+        }
         return check;
     }
     else if( curEp == LastEp ) check.new = false;
@@ -120,23 +132,73 @@ function UpdateData() {
     config.data = JSON.stringify(data);
 }
 
-getBlogPost();
+
+
+
+//getBlogPost();
 
 var job = new CronJob('0/30 * * * *', () => getBlogPost(), null, false, "America/New_York");
 
-var jobJobber = new CronJob('7 16 * * *', 
-    function () { 
-        job.start();
-        getBlogPost();
-        console.log("Checking ep status of Cherry Magic...");
-    }, null, false, "America/New_York");
+var jobJobber = new CronJob('0 12 * * 4', 
+function () { 
+    job.start();
+    getBlogPost();
+}, null, false, "America/New_York");
 
 jobJobber.start();
 
+function getNextCheck(){
+    if(job.running) return job.nextDate().fromNow();
+    else return jobJobber.nextDate().format("[on] dddd, MMMM Do");
+}
+
+var getInput = () => {
+    
+    rl.question('Command: ', answer => {
+        (answer != 'getInput' && consoler.eventNames().includes(answer)) ? consoler.emit(answer) : console.log("    No command by that name.");
+        consoler.emit('getInput');
+    });
+}
+
+var jobToggle = () => { 
+    job.running ? job.stop() : job.start();
+    console.log("    Blog Checker Job " + (job.running ? "Started." : "Stopped."));
+}
+
+var setCurEp = async () => {
+    await rl.question("Ep no: ", answer => {
+        if(answer < 30 && answer > 0) {
+            LastEp = answer;
+            console.log(`   Current Episode Set to ${answer}.`);
+        } else console.log(`    Input ${answer} is invalid or out of bounds.`);
+        consoler.emit('getInput');
+    });
+}
+
+var lastCheck = () => console.log(`    Cherry Magic last checked on ${job.lastDate()}.\n    Next check is ${getNextCheck()}\n    Latest Episode is Episode ${LastEp}.`);
+
+var currRunJobs = () => {
+    console.log("    Blog Checker Job is " + (job.running? "running" : "not running"));
+    console.log("    BC Initiator Job is " + (jobJobber.running? "running" : "not running"));
+}
+
+var forceCheck = () => getBlogPost();
+
+consoler.on('getInput', getInput);
+consoler.on('lastCheck', lastCheck);
+consoler.on('setCurEp', setCurEp);
+consoler.on('jobToggle', jobToggle);
+consoler.on('currRunJobs', currRunJobs);
+consoler.on('help', () => console.log(consoler.eventNames()));
+
+
+consoler.emit('getInput');
+
+
+
+
 function makeRequest() {
     axios(config)
-        .then( console.log("Notification sent!") )
-        .catch( (error) => console.log(error) );
-    }
+    .then( console.log("Notification sent!") )
+    .catch( (error) => console.log(error) );
 }
-    
