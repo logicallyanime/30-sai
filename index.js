@@ -139,10 +139,14 @@ function UpdateData() {
 
 var job = new CronJob('0/30 * * * *', () => getBlogPost(), null, false, "America/New_York");
 
-var jobJobber = new CronJob('0 12 * * 4', 
-function () { 
-    job.start();
-    getBlogPost();
+var jobJobber = new CronJob('0/15 12 * * 4', 
+() => { 
+    if(!job.running){
+      job.start();
+      console.log("Blog checker Job started");
+      getBlogPost();
+    }
+
 }, null, false, "America/New_York");
 
 jobJobber.start();
