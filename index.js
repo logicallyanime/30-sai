@@ -2,16 +2,17 @@ var axios = require("axios");
 const CronJob = require('cron').CronJob;
 require('dotenv').config()
 const RealDebridClient = require('node-real-debrid')
-const RD = new RealDebridClient(process.env.DEBRID)
+const RD = new RealDebridClient(process.env.DEBRID_TOKEN);
 const jsdom = require("jsdom");
 const { JSDOM } = jsdom;
 const fs = require('fs');
 var beau = require("json-beautify");
 var events = require('events');
 var consoler = new events.EventEmitter();
-const AuthToken = process.env.TOKEN;
-var LastEp = 0;
-var firstRun = true;
+const PushToken = process.env.PUSH_TOKEN;
+const LineToken = process.env.LINE_TOKEN;
+var LastEp = parseInt(fs.readFileSync("LastEp"))
+var forcedRun = false;
 var readline = require('readline');
 
 var rl = readline.createInterface({
@@ -21,18 +22,28 @@ var rl = readline.createInterface({
 
 const statiData = { type: "link", channel_tag: "30-sai" }
 var variData = { title: null, body: null, url: null, };
-var data = { ...variData, ...statiData }
-
-var config = {
+var data = {};
+var Pushconfig = {
     method: 'post',
     url: 'pushes',
     baseURL: 'https://api.pushbullet.com/v2/',
     headers: {
-        'Access-Token': AuthToken,
+        'Access-Token': PushToken,
         'Content-Type': 'application/json'
     },
-    data: JSON.stringify(data)
+    data: null
 };
+
+var LineConfig = {
+    method: 'post',
+    url: 'https://api.line.me/v2/bot/message/broadcast',
+    headers: { 
+      'Authorization': 'Bearer ' + LineToken, 
+      'Content-Type': 'application/json'
+    },
+    data: null
+  };
+
 
 var isArray = (obj) => Object.prototype.toString.call(obj) === '[object Array]';
 
@@ -58,6 +69,8 @@ async function getBlogPost() {
     }
     
     let dom = new JSDOM(cherry.content.rendered);
+    let banner = cherry.jetpack_featured_media_url
+    let embedLink = dom.window.document.body.getElementsByTagName('iframe')[0].src
     let oldLink = dom.window.document.body.getElementsByTagName('a')[0].href
     let check = await CheckPost(oldLink, cherry.epNo);
     
@@ -65,25 +78,25 @@ async function getBlogPost() {
         console.log("New ep, creating link...");
         let newLink = await RD.unrestrict.link(oldLink);
         console.log("Link created!");
-        SetVariData("New Cherry Magic Episode Available", `Episode ${parseInt(cherry.epNo)} is now up!`, newLink.download + ".mp4");
-        UpdateData();
+        // SetVariData("New Cherry Magic Episode Available", `Episode ${parseInt(cherry.epNo)} is now up!`, newLink.download + ".mp4");
+        UpdateLineData(parseInt(cherry.epNo),embedLink,(newLink.download + ".mp4"), banner);
         console.log("Sending notification...");
-        makeRequest()
+        makeRequest(LineConfig);
     } 
     else if (!check.new) return;
     else{
         logError(cherry);
         SetVariData("An error has occured, check the log file.", `Check your fucking code`);
-        UpdateData();
-        makeRequest()
+        UpdatePushData();
+        makeRequest(Pushconfig)
     }
     if(job.running){
         job.stop();
         console.log("Check post completed, Blog Checker Job stopped.");
         return;
-    } else if (firstRun){
-        firstRun = false
-        console.log("Check post completed first run!");
+    } else if (forcedRun){
+        forcedRun = false
+        console.log("Check post completed forced run!");
     } 
     else console.log("Check post completed, yet Blog Checker Job is not running...");
 }
@@ -115,11 +128,7 @@ async function CheckPost(link, curEp) {
     if(curEp > LastEp){
         check.new = true;
         LastEp = curEp;
-        let prev = await axios.default.get('https://api.pushbullet.com/v2/pushes', { headers: { 'Access-Token': AuthToken } });
-        if(prev.data.pushes[0].body == `Episode ${parseInt(curEp)} is now up!`) {
-            check.new = false;
-            console.log("Notification has already previously been sent.")
-        }
+        fs.writeFileSync("LastEp",curEp);
         return check;
     }
     else if( curEp == LastEp ) check.new = false;
@@ -127,12 +136,15 @@ async function CheckPost(link, curEp) {
     return check;
 }
 
-function UpdateData() {
+function UpdatePushData() {
     data = { ...variData, ...statiData }
-    config.data = JSON.stringify(data);
+    Pushconfig.data = JSON.stringify(data);
 }
 
-
+function UpdateLineData(epNo, emLink, KodiLink, banner) {
+    data = {"messages":[{"type":"flex","altText":`Episode ${epNo} is Now Available`,"contents":{"type":"bubble","size":"giga","hero":{"type":"image","url": banner,"size":"full","aspectRatio":"20:9","aspectMode":"cover","action":{"type":"uri","uri":emLink}},"body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":"New Cherry Magic Episode Available","weight":"bold","size":"xl","align":"center"},{"type":"box","layout":"vertical","margin":"lg","spacing":"sm","contents":[{"type":"text","text":`Episode ${epNo} is now up!`,"wrap":true,"align":"center"}]}]},"footer":{"type":"box","layout":"vertical","spacing":"sm","contents":[{"type":"separator","margin":"xs"},{"type":"button","style":"link","height":"sm","action":{"type":"uri","label":"Open Player","uri":emLink},"color":"#007bff"},{"type":"button","style":"link","height":"sm","action":{"type":"uri","label":"Open in Kodi (via custom Kore)","uri":KodiLink},"color":"#007bff"}],"flex":0,"offsetBottom":"5px"}}}]}
+    LineConfig.data = JSON.stringify(data);
+}
 
 
 //getBlogPost();
@@ -186,8 +198,10 @@ var currRunJobs = () => {
     console.log("    BC Initiator Job is " + (jobJobber.running? "running" : "not running"));
 }
 
-var forceCheck = () => getBlogPost();
-
+var forceCheck = () => {
+    getBlogPost();
+    forcedRun = true;
+}
 consoler.on('getInput', getInput);
 consoler.on('lastCheck', lastCheck);
 consoler.on('setCurEp', setCurEp);
@@ -202,7 +216,7 @@ consoler.emit('getInput');
 
 
 
-function makeRequest() {
+function makeRequest(config) {
     axios(config)
     .then( console.log("Notification sent!") )
     .catch( (error) => console.log(error) );
