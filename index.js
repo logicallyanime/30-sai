@@ -48,7 +48,8 @@ var LineConfig = {
 var isArray = (obj) => Object.prototype.toString.call(obj) === '[object Array]';
 
 async function getBlogPost() {
-    
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
     console.log("\nChecking ep status of Cherry Magic...");
     let request = await axios.default.get("https://irozuku.org/fansub/wp-json/wp/v2/posts");
     let json = await request.data;
@@ -82,6 +83,7 @@ async function getBlogPost() {
         UpdateLineData(parseInt(cherry.epNo),embedLink,(newLink.download + ".mp4"), banner);
         console.log("Sending notification...");
         makeRequest(LineConfig);
+        
     } 
     else if (!check.new) return;
     else{
@@ -95,10 +97,13 @@ async function getBlogPost() {
         console.log("Check post completed, Blog Checker Job stopped.");
         return;
     } else if (forcedRun){
-        forcedRun = false
         console.log("Check post completed forced run!");
+        forcedRun = false
+        return;
     } 
     else console.log("Check post completed, yet Blog Checker Job is not running...");
+    
+    if(!forcedRun) process.stdout.write("\nCommand: ");
 }
 
 function SetVariData(title = null,body = null, url = null) {
@@ -125,13 +130,17 @@ async function CheckPost(link, curEp) {
         check.errors = true;
         return check;
     }
-    if(curEp > LastEp){
+    if(parseInt(curEp) > parseInt(LastEp)){
         check.new = true;
-        LastEp = curEp;
+        LastEp = parseInt(curEp);
         fs.writeFileSync("LastEp",curEp);
         return check;
     }
-    else if( curEp == LastEp ) check.new = false;
+    else if( curEp == LastEp ){ 
+        check.new = false;
+        console.log("No new episode...");
+        if(!forcedRun) process.stdout.write("\n\nCommand: ");
+    }
     else check.errors = true;
     return check;
 }
@@ -172,7 +181,7 @@ var getInput = () => {
     
     rl.question('Command: ', answer => {
         (answer != 'getInput' && consoler.eventNames().includes(answer)) ? consoler.emit(answer) : console.log("    No command by that name.");
-        consoler.emit('getInput');
+        if('forceCheck'!= answer) consoler.emit('getInput');
     });
 }
 
@@ -198,9 +207,11 @@ var currRunJobs = () => {
     console.log("    BC Initiator Job is " + (jobJobber.running? "running" : "not running"));
 }
 
-var forceCheck = () => {
-    getBlogPost();
+var forceCheck = async () => {
     forcedRun = true;
+    await getBlogPost();
+    console.log();
+    consoler.emit('getInput');
 }
 consoler.on('getInput', getInput);
 consoler.on('lastCheck', lastCheck);
@@ -212,6 +223,8 @@ consoler.on('help', () => console.log(consoler.eventNames()));
 
 
 consoler.emit('getInput');
+
+setTimeout(() => getBlogPost(),5000);
 
 
 
